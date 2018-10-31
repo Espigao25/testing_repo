@@ -1,140 +1,104 @@
-from pylab import *   	#Graphical capabilities
-from rtlsdr import *	#SDR
+### Made by Diogo Batista (diogobatista@ua.pt) as part of my Integrated Master's thesis
+
+#### If any issues arise, try :
+
+	# First time setup? Issues with SDR kit compatibility? Check:  https://gist.github.com/floehopper/99a0c8931f9d779b0998
+
+	# Issues with numpy module? On terminal: pip3 install --upgrade --ignore-installed --install-option '--install-data=/usr/local' numpy
+
+from pylab import *   	#Graphical capabilities, network and debug outfiles
 import queue			#FIFO/queue
-import threading		#Multi-threading
-import time
-
-
-sdr = RtlSdr()
-
-
-########################################################################
-### DECLARING VARIABLES
-########################################################################
-
-
-#private variables
-buffer_size = 10000
-global sample_buffer
-sample_buffer = queue.Queue(buffer_size)
-
-
-
-
-# configure SDR device
-sdr.sample_rate = 0.3e6
-sdr.center_freq = 1000073000
-sdr.gain = 25
-global frame_size
-frame_size = 32*1024
-
-
-global data_ready
-data_ready = 0
-global x
-x = range(frame_size)
-global samples
-samples = zeros(frame_size)
-
-
-global fig1
-global ax1
-
-
-
+import datetime			#timestamps for the outfiles
+import os				#file management
+import array
+import sys
+import pdata, PBZ_comparator			#comparator libraries
+import time				#timestamps
+import argparse			#argumment management
+#import scipy.signal
 
 
 ########################################################################
-### DEFINING OBJECTS
+### FUNCTIONS
 ########################################################################
 
 
-def collectData(): 	#Collect samples
+def parityOf(int_type): # Check parity
 
-	global samples
-	global frame_size
-	global data_ready
+	x = 0
+	for bit in int_type:
+		x = (x << 1) | bit
 
-
-	while True:
-	#if data_ready == 0:
-		samples = sdr.read_samples(frame_size)
-		data_ready = 1
-		print("RECOLHI DADOS")
-		time.sleep(2)
-	
-	
-#def plotData():		#Plot samples
-#	
-#	global samples
-#	global x
-#	global fig
-#	global ax
-#	global line1
-#	global data_ready
-#	
-#	while True:
-#		# use matplotlib to estimate and plot the PSD
-#		if data_ready == 1:
-#			abs_samples = abs(samples)
-#			for step in x:
-#				line1.set_ydata(abs_samples[step])
-#				fig.canvas.draw()
-#				fig.canvas.flush_events()
-#			data_ready = 0
-		
-	
-	
-def threadInit():
-	print("ESTOU AQUI")
-	global t_collector, t_plotter
-	t_collector = threading.Thread(target=collectData, name="Collector", args=[])
-	#print(str(threading.active_count()))
-	#t_plotter = threading.Thread(target=plotData, name="Plotter", args=[])
-	
-def plotInit(): 
-	
-	global fig
-	global ax
-	global line1
-	global samples
-	global x
-	global frame_size
-
-	
-	fig = figure()
-	ax = fig.add_subplot(1,1,1)
-	line1, = ax.plot(x, samples, 'r-')
-	ax.set_xlim(0, frame_size)
-	ax.set_ylim(0, 0.5)
-	
-
+	parity = False
+	while (x):
+		parity = ~parity
+		x = x & (x - 1)
+	return(parity)
 
 
 if __name__ == "__main__":
-	
-	ion() # Turn on the interactive mode of PyLab, required in order to update the plots in real time
-	threadInit()  # Initialize the required threads.
-	plotInit()
-	
 
-	t_collector.start()
-	#t_collector.run()
-	
-	#t_plotter.start()
-	#t_plotter.run
-	
-	
-	
-	while True:
-				# use matplotlib to estimate and plot the PSD
-		if data_ready == 1:
-			abs_samples = abs(samples)
-			#for step in x:
-			line1.set_ydata(abs_samples)
-			fig.canvas.draw()
-			fig.canvas.flush_events()
-			data_ready = 0
-			print("IMPRIMI DADOS")
-		
 
+	end_result = []
+	iteration_end = False        # At the end of the main cycle's iteration this flag turns true if the desired number of iterations has been reached
+	iteration_count = 0
+
+	sample_FIFO = queue.Queue(0)
+	data = np.load("testing_samples.npy")
+	framesize = 29767
+
+
+	for x in range(20):
+		slice = data[(x*framesize):((x+1)*framesize)-1]
+		sample_FIFO.put_nowait(slice)
+
+	while sample_FIFO.empty() == False: # Are there any samples in the harvesting FIFO?
+
+		this_frame = sample_FIFO.get_nowait()
+		demod_signal = pdata.process_data(this_frame, 226000/3600, len(this_frame)) 	# Demodulation
+		#demod_signal = PBZ_comparator.compare_signal(this_frame, 226000/3600)
+		end_result.extend(demod_signal)												# O resultado obtido da desmodulação é anexado ao fim do array end_result
+
+	flipped_endresult = [1 - x for x in end_result]
+
+########################################################################
+### INFORMATION PARSING
+########################################################################
+
+	sucesses = 0
+	flipped_sucesses = 0
+	preamble_detections = 0
+	message_result = []
+	desired_result = [1,0,1,0,0,0,1,0,0,0,1,0,1,1]			# This is the sequence of bits that the program will interpret as a "Success"
+	preamble = [1,0,1,0]									# This is the sequence of bits that the program will interpret as the start of a packet
+
+	info_size = 8											# The information part of the packet consists of 2 hexadecimal chars, 8 bits
+	packet_size = len(preamble) + info_size + 2				# Parity + 2 hexa chars + parity bit + stop bit
+
+
+
+	# Count the number of sucesses
+
+	for x in range(len(end_result) - len(desired_result)):
+		if end_result[x:x+len(desired_result)] == desired_result:
+			sucesses += 1
+
+	for x in range(len(flipped_endresult) - len(desired_result)):
+		if flipped_endresult[x:x+len(desired_result)] == desired_result:
+			flipped_sucesses += 1
+
+	for x in range(len(end_result) - len(preamble)):				# Detects preambles
+		if end_result[x:x+len(preamble)] == preamble:
+			preamble_detections += 1                                # Counts them
+			if parityOf(end_result[x:x+packet_size-1]):             # Checks for parity in the whole packet
+				message_result.append(end_result[x+len(preamble):x+len(preamble)+info_size])        #if validaded adds to the output batch
+
+
+
+	print("\n\n")
+	print(end_result)
+
+
+	print("\nFINISHED   \n\n  \nFrame: 			" + str(desired_result) + "\nPreamble: 		" + str(preamble) + "\nSucesses: 		" + str(sucesses) + "\nFlipped Sucesses: 	" + str(flipped_sucesses) + "" )
+
+	sys.exit()
