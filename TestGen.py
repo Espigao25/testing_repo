@@ -3,138 +3,56 @@ from rtlsdr import *	#SDR
 import queue			#FIFO/queue
 import threading		#Multi-threading
 import time
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+import time
+import DEEP_comparator, PBZ_comparator, filterGen, parseGen, fileGen, gpioGen		#demodulating library
 
 
-sdr = RtlSdr()
+sample_rate = 226000
+symbol_rate = 3650
 
+frame_size = 320*1024
+decimation_factor = 1
 
-########################################################################
-### DECLARING VARIABLES
-########################################################################
-
-
-#private variables
-buffer_size = 10000
-global sample_buffer
-sample_buffer = queue.Queue(buffer_size)
-
-
-
-
-# configure SDR device
-sdr.sample_rate = 0.3e6
-sdr.center_freq = 1000073000
-sdr.gain = 25
-global frame_size
-frame_size = 32*1024
-
-
-global data_ready
-data_ready = 0
-global x
-x = range(frame_size)
-global samples
-samples = zeros(frame_size)
-
-
-global fig1
-global ax1
-
-
-
-
-
-########################################################################
-### DEFINING OBJECTS
-########################################################################
-
-
-def collectData(): 	#Collect samples
-
-	global samples
-	global frame_size
-	global data_ready
-
-
-	while True:
-	#if data_ready == 0:
-		samples = sdr.read_samples(frame_size)
-		data_ready = 1
-		print("RECOLHI DADOS")
-		time.sleep(2)
-	
-	
-#def plotData():		#Plot samples
-#	
-#	global samples
-#	global x
-#	global fig
-#	global ax
-#	global line1
-#	global data_ready
-#	
-#	while True:
-#		# use matplotlib to estimate and plot the PSD
-#		if data_ready == 1:
-#			abs_samples = abs(samples)
-#			for step in x:
-#				line1.set_ydata(abs_samples[step])
-#				fig.canvas.draw()
-#				fig.canvas.flush_events()
-#			data_ready = 0
-		
-	
-	
-def threadInit():
-	print("ESTOU AQUI")
-	global t_collector, t_plotter
-	t_collector = threading.Thread(target=collectData, name="Collector", args=[])
-	#print(str(threading.active_count()))
-	#t_plotter = threading.Thread(target=plotData, name="Plotter", args=[])
-	
-def plotInit(): 
-	
-	global fig
-	global ax
-	global line1
-	global samples
-	global x
-	global frame_size
-
-	
-	fig = figure()
-	ax = fig.add_subplot(1,1,1)
-	line1, = ax.plot(x, samples, 'r-')
-	ax.set_xlim(0, frame_size)
-	ax.set_ylim(0, 0.5)
-	
-
-
+preamble = [1,0,1,0]
+packet_size = 16
+payload_size = 8
 
 if __name__ == "__main__":
-	
-	ion() # Turn on the interactive mode of PyLab, required in order to update the plots in real time
-	threadInit()  # Initialize the required threads.
-	plotInit()
-	
 
-	t_collector.start()
-	#t_collector.run()
-	
-	#t_plotter.start()
-	#t_plotter.run
-	
-	
-	
-	while True:
-				# use matplotlib to estimate and plot the PSD
-		if data_ready == 1:
-			abs_samples = abs(samples)
-			#for step in x:
-			line1.set_ydata(abs_samples)
-			fig.canvas.draw()
-			fig.canvas.flush_events()
-			data_ready = 0
-			print("IMPRIMI DADOS")
-		
+	samples = np.load('outfile_samples.npy')
 
+	sample_FIFO = queue.Queue(0)
+
+
+	for n in range((int(len(samples)/frame_size))):
+		sample_FIFO = sample_FIFO.put_nowait(samples[((n-1)* frame_size)+1:((n)* frame_size)])
+
+
+	while sample_FIFO.empty() == False: # Are there any samples in the harvesting FIFO?
+
+		this_frame = sample_FIFO.get_nowait()
+
+		this_frame =  filterGen.bp_butter(this_frame, [15, 3600], 2, sample_rate)	# Apply butterworth, 2nd order band pass filter. The filter order should be changed with care, a simulation can be run with the help of the "ZXC.py" script
+
+		if decimation_factor > 1:
+			 this_frame = signal.decimate(this_frame, decimation_factor)				# Decimate if decimation order > 1
+
+
+		this_frame = this_frame[int(12500/decimation_factor):-1]							# Filtering the frame introduces artifacts in the first few samples, those samples are removed here in order to facilitate the comparator work.
+
+
+		#demod_signal = DEEP_comparator.compare_signal(this_frame, samples_per_symbol) 		#Deep Demodulation
+		demod_signal = PBZ_comparator.compare_signal(this_frame, samples_per_symbol)							#PBZ Demodulation
+
+		end_result.extend(demod_signal)							# The comparator's output is concatenated to the array end_result
+
+
+
+	message_result, sucesses, flipped_sucesses, preamble_detections = parseGen.binary_parse(end_result, preamble , packet_size , payload_size)
+
+
+print('Preambles:	' + str(preamble_detections))
+print('Sucesses:	' + str(sucesses))
