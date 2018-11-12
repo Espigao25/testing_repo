@@ -123,7 +123,7 @@ def collectData(): 	#Collect samples
 	while frame_counter < stop_at :
 		samples = sdr.read_samples(frame_size)
 		samples2 = abs(samples)
-		sample_FIFO.put_nowait(samples2)  ## Harvests samples and stores their ABSOLUTE VALUES into a FIFO		
+		sample_FIFO.put_nowait(samples2)  ## Harvests samples and stores their ABSOLUTE VALUES into a FIFO
         #print("\n###   TERMINEI A RECOLHA DE AMOSTRAS EM " + str(round(time.time() -t, 2)) + ". TEMPO IDEAL = " +str(round((frame_size*stop_at)/sdr.sample_rate, 2)) + "   ###\n")
 		frame_counter += 1
 
@@ -146,8 +146,8 @@ if __name__ == "__main__":
 		end_result = []
 		iteration_end = False        # At the end of the main cycle's iteration this flag turns true if the desired number of iterations has been reached
 		iteration_count = 0
-		
-		
+
+
 		while sample_FIFO.empty == True:   # Wait until there is at least 1 item in the FIFO
 			pass
 
@@ -157,19 +157,19 @@ if __name__ == "__main__":
 			if sample_FIFO.empty() == False: # Are there any samples in the harvesting FIFO?
 
 				this_frame = sample_FIFO.get_nowait()
-				
+
 				this_frame =  filterGen.bp_butter(this_frame, [15, 3600], 2, sdr.sample_rate)	# Apply butterworth, 2nd order band pass filter. The filter order should be changed with care, a simulation can be run with the help of the "ZXC.py" script
 
 				if decimation_factor > 1:
-					 this_frame = signal.decimate(this_frame, decimation_factor)				# Decimate if decimation order > 1	
+					 this_frame = signal.decimate(this_frame, decimation_factor)				# Decimate if decimation order > 1
 
-				
+
 				this_frame = this_frame[int(12500/decimation_factor):-1]							# Filtering the frame introduces artifacts in the first few samples, those samples are removed here in order to facilitate the comparator work.
 
 
 				#demod_signal = DEEP_comparator.compare_signal(this_frame, samples_per_symbol) 		#Deep Demodulation
 				demod_signal = PBZ_comparator.compare_signal(this_frame, samples_per_symbol)							#PBZ Demodulation
-				
+
 				end_result.extend(demod_signal)							# The comparator's output is concatenated to the array end_result
 
 
@@ -191,18 +191,18 @@ if __name__ == "__main__":
 
 
 		fileGen.save_payload(message_result, debug, allsamples, end_result, samples_per_symbol)
-		
-		
+
+
 ########################################################################
 ### RPI GPIO UPDATING
 ########################################################################
-		
-		
-		temporal_window = (1/sdr.sample_rate)*frame_size				
+
+
+		temporal_window = (1/sdr.sample_rate)*frame_size
 		packet_starts_t_delta = 0.0152									# Time in seconds between start of consecutive packets,
-			
+
 		max_sucesses = max(sucesses, flipped_sucesses)
-		success_ratio = max_sucesses / (temporal_window/packet_starts_t_delta) 
+		success_ratio = max_sucesses / (temporal_window/packet_starts_t_delta)
 
 		if USE_LEDS == True:
 
@@ -212,7 +212,7 @@ if __name__ == "__main__":
 ########################################################################
 ### VERBOSE
 ########################################################################
-		
+
 
 
 		runtime = round(time.time() -t, 3)
