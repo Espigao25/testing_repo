@@ -158,7 +158,7 @@ if __name__ == "__main__":
 
 				this_frame = sample_FIFO.get_nowait()
 
-				this_frame =  filterGen.bp_butter(this_frame, [15, 3600], 2, sdr.sample_rate)	# Apply butterworth, 2nd order band pass filter. The filter order should be changed with care, a simulation can be run with the help of the "ZXC.py" script
+				this_frame =  filterGen.bp_butter(this_frame, [15, 3600*2], 2, sdr.sample_rate)	# Apply butterworth, 2nd order band pass filter. The filter order should be changed with care, a simulation can be run with the help of the "ZXC.py" script
 
 				if decimation_factor > 1:
 					 this_frame = signal.decimate(this_frame, decimation_factor)				# Decimate if decimation order > 1

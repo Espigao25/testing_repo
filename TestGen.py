@@ -12,11 +12,12 @@ import DEEP_comparator, PBZS_comparator, filterGen, parseGen, fileGen		#demodula
 
 
 sample_rate = 226000
-symbol_rate = 3650
+symbol_rate = 3645
 samples_per_symbol = int(sample_rate/symbol_rate)
 
 
-samples_between_packets = 10.8e-3 * sample_rate
+
+samples_between_packets = 2443 #10.8e-3 * sample_rate
 frame_size = 320*1024
 decimation_factor = 1
 
@@ -31,7 +32,7 @@ if __name__ == "__main__":
 	sample_FIFO = queue.Queue(0)
 
 
-	for n in range((int(len(samples)/frame_size))):
+	for n in range((int(len(samples)/frame_size))-1):
 		one_slice = samples[((n)* frame_size):((n+1)* frame_size)]
 		#print('slice size: ' + str(len(one_slice)))
 		sample_FIFO.put_nowait(one_slice)
