@@ -5,9 +5,9 @@ from astropy.io import ascii
 
 
 debug = False		# Set to true to plot graphs
-debug1 = True		# Set to true to plot graphs
-debug2 = True
-debug3 = False
+debug1 = False		# Set to true to plot graphs
+debug2 = False		# Good and bad examples
+debug3 = True		#deltas heatmap
 
 def compare_signal(signal, samples_per_symbol, packet_size, samples_between_packets):
 
@@ -15,6 +15,8 @@ def compare_signal(signal, samples_per_symbol, packet_size, samples_between_pack
 	print("samples:					" + str(len(signal)))
 	print("samples_per_symbol:		" + str(samples_per_symbol))
 	print("samples_between_packets:	" + str(samples_between_packets))
+
+
 
 
 	diff_signal = np.gradient(signal)
@@ -53,11 +55,18 @@ def compare_signal(signal, samples_per_symbol, packet_size, samples_between_pack
 			passed = (y for y in zero_crossings_diff if y > x)
 			zcc.append(int((min(passed)+x)/2))
 
-	zcc = zero_crossings
+	#zcc = zero_crossings
 	print("zero_crossings:			" + str(len(zcc)))
 	##################	##################	##################	##################	##################	##################
 	##Ensinar a distinção aqui
 	##################	##################	##################	##################	##################	##################
+	correct_point = 168954
+	wrong_point = 109381#105797
+
+	correct_index = zcc.index(correct_point)
+	wrong_index = zcc.index(wrong_point)
+
+
 
 	packet_fade = 0
 
@@ -85,20 +94,111 @@ def compare_signal(signal, samples_per_symbol, packet_size, samples_between_pack
 	#	for b in mh:
 	#		print(key[a][b])
 
-	all_differences= []
-	for x in zcc:
-		for y in zcc:
-			if abs(x-y) < key[-1][-1]:
-				all_differences.append(y-x)
+
+	surveil_range= 5
+	cutoff = surveil_range * B + (A*packet_size)
+	resolution = 128
+	margin = int(cutoff/(resolution*2)*4)
+	print('margin = ' + str(margin))
+	number_of_bins = surveil_range * resolution
+	all_bins = np.linspace(-cutoff, cutoff, number_of_bins)
+
 
 
 	if debug3 == True:
+
+		correct_point_differences = []
+		wrong_point_differences = []
+		all_differences = []
+		for x in zcc:
+
+			delta_correct = abs(zcc[correct_index]-x)
+			delta_wrong = abs(zcc[wrong_index]-x)
+			if delta_correct < cutoff:
+				correct_point_differences.append(zcc[correct_index]-x)
+			if delta_wrong < cutoff:
+				wrong_point_differences.append(zcc[wrong_index]-x)
+			for y in zcc:
+				if abs(x-y) < cutoff:
+					all_differences.append(y-x)
+
+
+
+		p = np.digitize(all_differences, all_bins)
+		all_binned = [0 for x in range(number_of_bins)]
+		for w in range(len(p)):
+			all_binned[p[w]] +=1
+
+		correct_binned = np.digitize(correct_point_differences, all_bins)
+		wrong_binned = np.digitize(wrong_point_differences, all_bins)
+
+		count = 0
+		v_lines = []
+
+		local_maxima_index = (np.diff(np.sign(np.diff(all_binned))) < 0).nonzero()[0] + 1 # local max
+
+		topN = [all_binned[w] for w in local_maxima_index] 	#	[VALUE OF LOCAL MAX, INDEX OF LOCAL MAX]
+		topN_index = [w for w in local_maxima_index]		# has to be done this way to convert nparray to list
+
+		#print(topN)
+
+		while len(topN)>surveil_range*2+1:
+			minimum = topN.index((min(topN)))
+			topN.pop(minimum)
+			topN_index.pop(minimum)
+
+
+
+		peaks = [all_bins[w] for w in topN_index]
+		peaks_nz = peaks
+		peaks_nz.pop(int(len(peaks_nz)/2))  # same as peaks but without the indice that corresponds to the zero
+
+		trust = [0 for x in zcc]
+		for x in range(len(zcc)):
+			for y in peaks_nz:
+				temp = zcc[x] + y
+				for z in zcc:
+					if abs(z-temp) < 100:
+						trust[x] += 1
+
+		plt.scatter(zcc, trust)
+
+		#trust2 = np.hstack(trust).tolist()
+		#lt.hist(trust2, bins=20)
+		plt.show()
+
+		#print(local_maxima_index)
+		#print(*all_bins, sep='\n')
+		#print(*local_maxima, sep='\n')
+		#print(*local_maxima, sep='\n')
+
 		all_differences= [i for i in all_differences if i != 0]
-		z7 = np.hstack(all_differences).tolist()
-		plt.hist(z7, bins=max(all_differences))  # arguments are passed to np.histogram
-		for y in matrix_height:
-			for x in matrix_length:
-				plt.axvline(x=key[x][y], color='k', linestyle='-')
+		z_all_differences = np.hstack(all_differences).tolist()
+		z_correct_point_differences = np.hstack(correct_point_differences).tolist()
+		z_wrong_point_differences = np.hstack(wrong_point_differences).tolist()
+
+
+		plt.subplot(311)
+		plt.hist(z_all_differences, bins=all_bins)#max(all_differences))  # arguments are passed to np.histogram
+		for w in peaks:
+			center = (w - int(cutoff/number_of_bins))
+			plt.axvline(x=center, color='k', linestyle='-')
+		plt.title('Sum of all deltas of all points')
+		plt.subplot(312)
+		plt.title('All deltas of a correct transition')
+		plt.hist(z_correct_point_differences, bins=all_bins)#max(all_differences))  # arguments are passed to np.histogram
+		for w in peaks:
+			center = (w - int(cutoff/number_of_bins))
+			plt.axvspan(center-margin, center+margin, color='red', alpha=0.5)
+		plt.subplot(313)
+		plt.title('All deltas of a wrong transition')
+		plt.hist(z_wrong_point_differences, bins=all_bins)#max(all_differences))  # arguments are passed to np.histogram
+		for w in peaks:
+			center = (w - int(cutoff/number_of_bins))
+			plt.axvspan(center-margin, center+margin, color='red', alpha=0.5)
+		#for y in matrix_height:
+			#for x in matrix_length:
+				#plt.axvline(x=key[x][y], color='k', linestyle='-')
 		plt.show()
 
 
@@ -106,7 +206,7 @@ def compare_signal(signal, samples_per_symbol, packet_size, samples_between_pack
 
 
 	allmargins = []
-	error_margin = 5
+	error_margin = 7
 	aux = range(error_margin*2+1)
 	possible_errors = [x-error_margin for x in aux]
 	#print(possible_errors)
@@ -160,19 +260,15 @@ def compare_signal(signal, samples_per_symbol, packet_size, samples_between_pack
 
 	data = ascii.write(heatmap_total, format = 'fixed_width_no_header', delimiter = '|')
 
-
-
 	if debug2 == True:
-		correct_index = 165566
-		wrong_index = 105797
 
-		print('\n\nHeatmap of transition ' + str(zcc.index(correct_index)) +' which is correct\n')
-		heatmap_correct = [[ heatmap[zcc.index(correct_index)][x][y] for y in mh] for x in ml]
+		print('\n\nHeatmap of transition ' + str(correct_index) +' which is correct\n')
+		heatmap_correct = [[ heatmap[correct_index][x][y] for y in mh] for x in ml]
 		data = ascii.write(heatmap_correct, format = 'fixed_width_no_header', delimiter = '|')
 
 
-		print('\n\nHeatmap of transition ' + str(zcc.index(wrong_index)) +' which is wrong\n')
-		heatmap_error = [[ heatmap[zcc.index(wrong_index)][x][y] for y in mh] for x in ml]
+		print('\n\nHeatmap of transition ' + str(wrong_index) +' which is wrong\n')
+		heatmap_error = [[ heatmap[wrong_index][x][y] for y in mh] for x in ml]
 		data = ascii.write(heatmap_error, format = 'fixed_width_no_header', delimiter = '|')
 		#, col_starts=(0, 16, 31, 46), col_ends=(15, 30, 45, 60))
 
