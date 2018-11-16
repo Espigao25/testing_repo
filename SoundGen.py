@@ -14,7 +14,7 @@ import threading		#Multi-threading
 import RPi.GPIO as GPIO	#LED's
 import array
 import sys
-import DEEP_comparator, PBZ_comparator, filterGen, parseGen, fileGen, gpioGen		#demodulating library
+import DEEP_comparator, PBZ_comparator, PBZS_comparator, filterGen, parseGen, fileGen, gpioGen		#demodulating library
 import time				#time deltas
 import argparse			#argumment management
 #import scipy.signal
@@ -168,7 +168,8 @@ if __name__ == "__main__":
 
 
 				#demod_signal = DEEP_comparator.compare_signal(this_frame, samples_per_symbol) 		#Deep Demodulation
-				demod_signal = PBZ_comparator.compare_signal(this_frame, samples_per_symbol)							#PBZ Demodulation
+				#demod_signal = PBZ_comparator.compare_signal(this_frame, samples_per_symbol)							#PBZ Demodulation
+				demod_signal = PBZS_comparator.compare_signal(this_frame, samples_per_symbol)							#PBZS Demodulation
 
 				end_result.extend(demod_signal)							# The comparator's output is concatenated to the array end_result
 

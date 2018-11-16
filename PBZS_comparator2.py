@@ -15,7 +15,7 @@ step2 = True
 
 def compare_signal(signal, samples_per_symbol, packet_size, samples_between_packets):
 
-	#signal = signal[50000:-1]
+	signal = signal[50000:-1]
 	print("samples:					" + str(len(signal)))
 	print("samples_per_symbol:		" + str(samples_per_symbol))
 	print("samples_between_packets:	" + str(samples_between_packets))
@@ -65,6 +65,12 @@ def compare_signal(signal, samples_per_symbol, packet_size, samples_between_pack
 	##################	##################	##################	##################	##################	##################
 
 
+	correct_point = 168954
+	wrong_point = 109381#105797
+
+	#correct_index = zcc.index(correct_point)
+	#wrong_index = zcc.index(wrong_point)
+
 	packet_fade = 0
 
 	A = samples_per_symbol													#number of samples expected in a symbol
@@ -95,11 +101,22 @@ def compare_signal(signal, samples_per_symbol, packet_size, samples_between_pack
 	number_of_bins = surveil_range * resolution
 	all_bins = np.linspace(-cutoff, cutoff, number_of_bins)
 
+
+	correct_point_differences = []
+	wrong_point_differences = []
 	all_differences = []
 	for x in zcc:
+
+		delta_correct = abs(zcc[correct_index]-x)
+		delta_wrong = abs(zcc[wrong_index]-x)
+		if delta_correct < cutoff:
+			correct_point_differences.append(zcc[correct_index]-x)
+		if delta_wrong < cutoff:
+			wrong_point_differences.append(zcc[wrong_index]-x)
 		for y in zcc:
 			if abs(x-y) < cutoff:
 				all_differences.append(y-x)
+
 
 
 	p = np.digitize(all_differences, all_bins)
@@ -107,6 +124,8 @@ def compare_signal(signal, samples_per_symbol, packet_size, samples_between_pack
 	for w in range(len(p)):
 		all_binned[p[w]] +=1
 
+	correct_binned = np.digitize(correct_point_differences, all_bins)
+	wrong_binned = np.digitize(wrong_point_differences, all_bins)
 
 	count = 0
 	v_lines = []
@@ -124,6 +143,7 @@ def compare_signal(signal, samples_per_symbol, packet_size, samples_between_pack
 		topN_index.pop(minimum)
 
 
+
 	peaks = [all_bins[w] for w in topN_index]
 	peaks_nz = peaks
 	peaks_nz.pop(int(len(peaks_nz)/2))  # same as peaks but without the indice that corresponds to the zero
@@ -136,6 +156,10 @@ def compare_signal(signal, samples_per_symbol, packet_size, samples_between_pack
 				if abs(z-temp) < margin:
 					trust[x] += 1
 
+
+
+		#trust2 = np.hstack(trust).tolist()
+		#lt.hist(trust2, bins=20)
 	compensation_range = packet_size*surveil_range
 	for x in range(len(trust[0:packet_size*surveil_range])):
 		trust[x] = int( trust[x] / min(1, ((compensation_range+x)/(compensation_range))))
@@ -152,6 +176,11 @@ def compare_signal(signal, samples_per_symbol, packet_size, samples_between_pack
 			trust2.pop(count)
 			zcc2.pop(count)
 		count -= 1
+
+		#print(local_maxima_index)
+		#print(*trust, sep='\n')
+		#print(*local_maxima, sep='\n')
+		#print(*local_maxima, sep='\n')
 
 	if debug3 == True:
 
@@ -185,8 +214,86 @@ def compare_signal(signal, samples_per_symbol, packet_size, samples_between_pack
 				#plt.axvline(x=key[x][y], color='k', linestyle='-')
 		plt.show()
 
+
+
+	allmargins = []
+	error_margin = 3
+	aux = range(error_margin*2+1)
+	possible_errors = [x-error_margin for x in aux]
+	#print(possible_errors)
+
+	for x in range(len(zcc2)):
+		#print(x)
+		c1 = 0
+		c2 = len(zcc2)-1
+		while (zcc2[c1] < zcc2[x] + key[0][0]):
+			c1 += 1
+		while (zcc2[c2] > zcc2[x] + key[-1][-1]):
+			c2 -= 1
+
+		passed = zcc2[c1:c2]
+		#passed = (y for y in zcc if (abs(y - zcc[x] < key[-1][-1]+error_margin)))
+		#print(passed)
+		for a in ml:
+			for b in mh:
+				#print(delta)
+				sum = zcc2[x] + key[a][b]
+				for h in possible_errors:
+					if sum+h in passed:
+						heatmap[x][a][b] = 1
+
+		heatmap[x][packet_fade][(packet_size-1)] = 'X'
+
+
 	print('\n\n\n\n\n')
 
+	#plt.plot(allmargins)
+	#plt.axhline(y=0, color='k', linestyle='--')
+	#plt.show()
+
+	if False:
+		hitsum2 = [0 for x in range(len(zcc2))]
+		for z in range(len(zcc2)):
+			heatmap_buffer = [[ heatmap[z][x][y] for y in mh] for x in ml]
+			for a in ml:
+				for b in mh:
+					if type(heatmap_buffer[a][b]) == int :
+						heatmap_total[a][b] += heatmap_buffer[a][b]
+						hitsum2[z] += heatmap_buffer[a][b]
+
+
+
+		hitsum = [u for u in hitsum2]
+	#hitsum1 = [hitsum2] / max(hitsum2)
+	#hitsum = [hitsum1] / max(signal)
+	#for a in mh:
+		#for b in ml:
+			#heatmap_total[b][a] *= 100
+			#heatmap_total[b][a] = round(heatmap_total[b][a]/len(zcc),1)
+
+
+		data = ascii.write(heatmap_total, format = 'fixed_width_no_header', delimiter = '|')
+
+	if debug2 == True:
+
+		print('\n\nHeatmap of transition ' + str(correct_index) +' which is correct\n')
+		heatmap_correct = [[ heatmap[correct_index][x][y] for y in mh] for x in ml]
+		data = ascii.write(heatmap_correct, format = 'fixed_width_no_header', delimiter = '|')
+
+
+		print('\n\nHeatmap of transition ' + str(wrong_index) +' which is wrong\n')
+		heatmap_error = [[ heatmap[wrong_index][x][y] for y in mh] for x in ml]
+		data = ascii.write(heatmap_error, format = 'fixed_width_no_header', delimiter = '|')
+
+
+	if debug == True:
+		for y in mh:
+			for x in ml:
+				line = key[x][y] + correct_index
+				plt.axvline(x=line, color='k', linestyle='-')
+
+
+		pylab.show()
 	##################	##################	##################	##################	##################	##################
 
 	allindexes = []

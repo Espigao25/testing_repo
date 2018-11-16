@@ -6,7 +6,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-import DEEP_comparator, PBZS_comparator, filterGen, parseGen, fileGen		#demodulating library
+import DEEP_comparator, PBZS_comparator, PBZ_comparator, filterGen, parseGen, fileGen		#demodulating library
 
 
 
@@ -51,8 +51,8 @@ if __name__ == "__main__":
 
 		this_frame = this_frame[int(12500/decimation_factor):-1]							# Filtering the frame introduces artifacts in the first few samples, those samples are removed here in order to facilitate the comparator work.
 
-		#demod_signal = PBZ_comparator.compare_signal(this_frame, samples_per_symbol)							#PBZ Demodulation
-		demod_signal = PBZS_comparator.compare_signal(this_frame, samples_per_symbol, packet_size, samples_between_packets)							#PBZ Demodulation
+		demod_signal = PBZ_comparator.compare_signal(this_frame, samples_per_symbol)							#PBZ Demodulation
+		#demod_signal = PBZS_comparator.compare_signal(this_frame, samples_per_symbol, packet_size, samples_between_packets)							#PBZ Demodulation
 		print('\n\n\n\n\n\n\n\n')
 
 		end_result.extend(demod_signal)							# The comparator's output is concatenated to the array end_result
