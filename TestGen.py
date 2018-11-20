@@ -12,7 +12,7 @@ import DEEP_comparator, PBZS_comparator, PBZ_comparator, filterGen, parseGen, fi
 
 
 sample_rate = 226000
-symbol_rate = 3645
+symbol_rate = 3670
 samples_per_symbol = int(sample_rate/symbol_rate)
 
 
@@ -27,7 +27,7 @@ payload_size = 8
 
 if __name__ == "__main__":
 
-	samples = np.load('outfile_samples.npy')
+	samples = np.load('PBZS_stage1.npy')
 
 	sample_FIFO = queue.Queue(0)
 
@@ -51,8 +51,8 @@ if __name__ == "__main__":
 
 		this_frame = this_frame[int(12500/decimation_factor):-1]							# Filtering the frame introduces artifacts in the first few samples, those samples are removed here in order to facilitate the comparator work.
 
-		demod_signal = PBZ_comparator.compare_signal(this_frame, samples_per_symbol)							#PBZ Demodulation
-		#demod_signal = PBZS_comparator.compare_signal(this_frame, samples_per_symbol, packet_size, samples_between_packets)							#PBZ Demodulation
+		#demod_signal = PBZ_comparator.compare_signal(this_frame, samples_per_symbol)							#PBZ Demodulation
+		demod_signal = PBZS_comparator.compare_signal(this_frame, samples_per_symbol, packet_size, samples_between_packets)							#PBZ Demodulation
 		print('\n\n\n\n\n\n\n\n')
 
 		end_result.extend(demod_signal)							# The comparator's output is concatenated to the array end_result
