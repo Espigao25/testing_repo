@@ -3,11 +3,11 @@ import pylab
 import matplotlib.pyplot as plt
 from astropy.io import ascii
 
-debug0 = False 		# See the raw signal
+debug0 = False		# See the raw signal
 debug = False		# Set to true to plot graphs
 debug1 = True		# Set to true to plot graphs
 debug2 = False		# Good and bad examples
-debug3 = False		# deltas heatmap
+debug3 = True		# deltas heatmap
 
 
 step1 = True
@@ -52,10 +52,12 @@ def compare_signal(signal, samples_per_symbol, packet_size, samples_between_pack
 	for x in zero_crossings:
 		if signal_zero_centered[x+1] > 0:
 			passed = (y for y in zero_crossings_diff if y < x)
-			zcc.append(int((max(passed)+x)/2))
+			zcc.append(int(max(passed)))
+			#zcc.append(int((max(passed)+x)/2))
 		if signal_zero_centered[x+1] < 0:
 			passed = (y for y in zero_crossings_diff if y > x)
-			zcc.append(int((min(passed)+x)/2))
+			zcc.append(int(min(passed)))
+			#zcc.append(int((min(passed)+x)/2))
 
 	#zcc = zero_crossings
 	print("zero_crossings:			" + str(len(zcc)))
@@ -77,8 +79,13 @@ def compare_signal(signal, samples_per_symbol, packet_size, samples_between_pack
 	##################	##################	##################	##################	##################	##################
 
 
-	correct_point = 133584
-	wrong_point = 66930
+
+
+	correct_point = 99492			#HALF TRANSITION
+	wrong_point = 67004
+
+	#correct_point = 133584			#HALF TRANSITION
+	#wrong_point = 66930
 
 	correct_index = zcc.index(correct_point)
 	wrong_index = zcc.index(wrong_point)
@@ -318,11 +325,11 @@ def compare_signal(signal, samples_per_symbol, packet_size, samples_between_pack
 		plt.scatter(zcc2, hitsum, color='red')
 		plt.plot(signal)
 		plt.title('Transition pattern search')
-		#for y in matrix_height:
-			#for x in matrix_length:
-				#plt.axvline(x=correct_point, color='red', linestyle='-')
-				#plt.axvline(x=key[x][y]+correct_point+error_margin, color='green', linestyle='--')
-				#plt.axvline(x=key[x][y]+correct_point-error_margin, color='green', linestyle='--')
+		for y in matrix_height:
+			for x in matrix_length:
+				plt.axvline(x=correct_point, color='red', linestyle='-')
+				plt.axvline(x=key[x][y]+correct_point+error_margin, color='green', linestyle='--')
+				plt.axvline(x=key[x][y]+correct_point-error_margin, color='green', linestyle='--')
 		#plt.ylim([0, 100])
 
 		#ax = plt.gca()
